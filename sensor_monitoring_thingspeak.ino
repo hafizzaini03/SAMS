@@ -5,13 +5,15 @@
 // Create an instance
 EnergyMonitor emon1;
 
-// Calibration factor: For SCT-013-000 (100A/50mA), 
-double calibration = 5.0; 
+// ESP32-C3 Analog Pin Change: GPIO 4 (ADC1_CH4)
+#define CURRENT_SENSOR_PIN 4
+
+// Calibration factor: Adjusted for SCT-013-000 (30A/30mA) with a 33 ohm burden resistor
+double calibration = 30.3; 
 
 // =========================
 // WiFi Settings
 // =========================
-// Replace with WiFi name and password
 const char* WIFI_SSID = "Fuchi";
 const char* WIFI_PASSWORD = "leicam6leicam6";
 
@@ -22,13 +24,14 @@ const char* THINGSPEAK_WRITE_APIKEY = "B09N2VNM7DVZAVST";
 const char* THINGSPEAK_SERVER = "http://api.thingspeak.com/update";
 
 // ThingSpeak free accounts should not update faster than every 15 seconds.
-// 20 seconds is safe.
 unsigned long thingspeakUpdateIntervalMs = 20000;
 unsigned long lastThingSpeakUpdate = 0;
 
 // WiFi reconnection timing
 unsigned long wifiReconnectIntervalMs = 30000;
 unsigned long lastWifiReconnectAttempt = 0;
+
+WiFiClient client; // Added to prevent HTTPClient initialization issues on some board cores
 
 void connectToWiFi() {
   WiFi.mode(WIFI_STA);
@@ -77,7 +80,8 @@ int sendToThingSpeak(double current_A, double power_W) {
   postData += "&field2=";
   postData += String(power_W, 2);
 
-  http.begin(THINGSPEAK_SERVER);
+  // Using the client instance ensures better stability during post requests
+  http.begin(client, THINGSPEAK_SERVER);
   http.addHeader("Content-Type", "application/x-www-form-urlencoded");
 
   int httpResponseCode = http.POST(postData);
@@ -88,7 +92,7 @@ int sendToThingSpeak(double current_A, double power_W) {
   if (httpResponseCode == 200 && response.toInt() > 0) {
     Serial.print("ThingSpeak update successful. Entry ID: ");
     Serial.println(response);
-  } 
+  }  
   else {
     Serial.print("ThingSpeak update failed. HTTP code: ");
     Serial.print(httpResponseCode);
@@ -102,10 +106,10 @@ int sendToThingSpeak(double current_A, double power_W) {
 void setup() {
   Serial.begin(115200);
 
-  // input pin (D34), calibration factor
-  emon1.current(34, calibration); 
+  // Input pin updated to GPIO 4, calibration factor updated to 30.3
+  emon1.current(CURRENT_SENSOR_PIN, calibration); 
 
-  // Connect ESP32 to WiFi
+  // Connect ESP32-C3 to WiFi
   connectToWiFi();
 }
 
