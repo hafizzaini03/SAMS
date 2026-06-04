@@ -5,7 +5,6 @@
 // =========================
 // WiFi Settings
 // =========================
-// Main module must connect to the same router SSID that sender scans.
 const char* WIFI_SSID = "Fuchi";
 const char* WIFI_PASSWORD = "leicam6leicam6";
 
@@ -15,35 +14,23 @@ const char* WIFI_PASSWORD = "leicam6leicam6";
 const char* THINGSPEAK_WRITE_APIKEY = "B09N2VNM7DVZAVST";
 const char* THINGSPEAK_SERVER = "http://api.thingspeak.com/update";
 
-// ThingSpeak free channel update interval should be >= 15 seconds.
-// 20 seconds is safer.
 const unsigned long THINGSPEAK_UPDATE_INTERVAL_MS = 20000;
 
 // =========================
 // System Settings
 // =========================
-// ThingSpeak supports up to 8 fields per channel.
-// Field 1 = Module 1, Field 2 = Module 2, etc.
 #define MODULE_COUNT 1
 
 // Current threshold to decide aircond ON/OFF.
-// You MUST calibrate this after observing real OFF and ON current readings.
 float ON_THRESHOLD_A = 0.50;
 
-// If no data is received from a module for this long, mark it as OFF.
 const unsigned long MODULE_TIMEOUT_MS = 60000;
-
-// Serial monitoring interval
 const unsigned long SERIAL_MONITOR_INTERVAL_MS = 5000;
-
-// WiFi reconnect interval
 const unsigned long WIFI_RECONNECT_INTERVAL_MS = 30000;
 
 // =========================
 // ESP-NOW Payload Structure
 // =========================
-// IMPORTANT:
-// This structure must be exactly the same as the sender/submodule code.
 typedef struct struct_message {
   uint8_t module_id;
   float current_A;
@@ -66,9 +53,6 @@ unsigned long lastThingSpeakUpdate = 0;
 unsigned long lastSerialMonitorPrint = 0;
 unsigned long lastWifiReconnectAttempt = 0;
 
-// =========================
-// WiFi Client
-// =========================
 WiFiClient client;
 
 // =========================
@@ -92,17 +76,12 @@ void connectToWiFi() {
   Serial.println("WiFi connected.");
   Serial.print("Main Module IP Address: ");
   Serial.println(WiFi.localIP());
-
   Serial.print("Main Module MAC Address: ");
   Serial.println(WiFi.macAddress());
-
   Serial.print("Main Module WiFi Channel: ");
   Serial.println(WiFi.channel());
-
   Serial.println();
-  Serial.println("IMPORTANT:");
-  Serial.println("Use this MAC address in every sender's receiverAddress[].");
-  Serial.println("Senders will scan this router SSID to find the same WiFi channel.");
+  Serial.println("IMPORTANT: Copy this MAC address into your ESP32-C3 sender configuration!");
   Serial.println();
 }
 
@@ -140,10 +119,9 @@ void updateModuleTimeoutStatus() {
 }
 
 // =========================
-// ESP-NOW Receive Callback
+// ESP-NOW Receive Callback (Classic ESP32 Core Compatible Signature)
 // =========================
-// This callback signature is for newer ESP32 Arduino core versions.
-void OnDataRecv(const esp_now_recv_info_t *recv_info, const uint8_t *incoming, int len) {
+void OnDataRecv(const uint8_t * mac, const uint8_t *incoming, int len) {
   if (len != sizeof(incomingData)) {
     Serial.print("Invalid ESP-NOW packet size. Expected: ");
     Serial.print(sizeof(incomingData));
@@ -183,17 +161,13 @@ void OnDataRecv(const esp_now_recv_info_t *recv_info, const uint8_t *incoming, i
 void printMonitoringSummary() {
   Serial.println();
   Serial.println("========== Main Module Monitoring ==========");
-
   Serial.print("WiFi Status: ");
   Serial.println(WiFi.status() == WL_CONNECTED ? "Connected" : "Disconnected");
-
   Serial.print("WiFi Channel: ");
   Serial.println(WiFi.channel());
-
   Serial.print("ON Threshold: ");
   Serial.print(ON_THRESHOLD_A);
   Serial.println(" A");
-
   Serial.println("--------------------------------------------");
 
   for (int i = 0; i < MODULE_COUNT; i++) {
@@ -212,12 +186,10 @@ void printMonitoringSummary() {
     Serial.print(powerReadings[i], 2);
     Serial.print(" W | Status: ");
     Serial.print(aircondStatus[i] == 1 ? "ON" : "OFF");
-
     Serial.print(" | Last received: ");
     Serial.print((millis() - lastReceivedTime[i]) / 1000);
     Serial.println(" seconds ago");
   }
-
   Serial.println("============================================");
   Serial.println();
 }
@@ -234,7 +206,6 @@ int sendToThingSpeak() {
   updateModuleTimeoutStatus();
 
   HTTPClient http;
-
   String postData = "";
   postData += "api_key=";
   postData += THINGSPEAK_WRITE_APIKEY;
@@ -251,31 +222,15 @@ int sendToThingSpeak() {
 
   int httpResponseCode = http.POST(postData);
   String response = http.getString();
-
   http.end();
 
   if (httpResponseCode == 200 && response.toInt() > 0) {
     Serial.print("ThingSpeak update successful. Entry ID: ");
     Serial.println(response);
-
-    Serial.print("Uploaded statuses: ");
-    for (int i = 0; i < MODULE_COUNT; i++) {
-      Serial.print("Field ");
-      Serial.print(i + 1);
-      Serial.print("=");
-      Serial.print(aircondStatus[i]);
-
-      if (i < MODULE_COUNT - 1) {
-        Serial.print(", ");
-      }
-    }
-    Serial.println();
-  } 
+  }  
   else {
     Serial.print("ThingSpeak update failed. HTTP code: ");
-    Serial.print(httpResponseCode);
-    Serial.print(" | Response: ");
-    Serial.println(response);
+    Serial.println(httpResponseCode);
   }
 
   return httpResponseCode;
@@ -286,21 +241,19 @@ int sendToThingSpeak() {
 // =========================
 void setup() {
   Serial.begin(115200);
-
   Serial.println();
   Serial.println("Main Module Receiver Starting...");
 
-  // Connect main module to WiFi first.
-  // This sets the ESP32 radio to the router channel.
+  // Connect to network first to lock in channel assignment
   connectToWiFi();
 
-  // Initialize ESP-NOW after WiFi is active
+  // Initialize ESP-NOW
   if (esp_now_init() != ESP_OK) {
     Serial.println("Error initializing ESP-NOW");
     return;
   }
 
-  // Register receive callback
+  // Register modified callback
   esp_now_register_recv_cb(OnDataRecv);
 
   Serial.println("ESP-NOW receiver initialized.");
@@ -316,13 +269,11 @@ void loop() {
   handleWiFiReconnect();
   updateModuleTimeoutStatus();
 
-  // Print monitoring summary every few seconds
   if (currentMillis - lastSerialMonitorPrint >= SERIAL_MONITOR_INTERVAL_MS) {
     printMonitoringSummary();
     lastSerialMonitorPrint = currentMillis;
   }
 
-  // Send all aircond ON/OFF statuses to ThingSpeak every 20 seconds
   if (lastThingSpeakUpdate == 0 ||
       currentMillis - lastThingSpeakUpdate >= THINGSPEAK_UPDATE_INTERVAL_MS) {
     
