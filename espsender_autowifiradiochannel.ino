@@ -7,35 +7,30 @@
 // Submodule Configuration
 // =========================
 // Change this for each submodule:
-// Submodule 1 -> MODULE_ID 1
-// Submodule 2 -> MODULE_ID 2
-// Submodule 3 -> MODULE_ID 3
 #define MODULE_ID 1
 
 // This must be the same WiFi SSID that the main module ESP32 connects to.
-// Password is NOT needed because this sender only scans the SSID to find its channel.
 #define ROUTER_SSID "Fuchi"
 
 // Fallback channel if the router SSID cannot be found during scanning.
-// Common 2.4 GHz channels are 1, 6, and 11.
 #define FALLBACK_ESPNOW_CHANNEL 6
+
+// ESP32-C3 Analog Pin Change: GPIO 4 (ADC1_CH4)
+#define CURRENT_SENSOR_PIN 4
 
 // Create an EmonLib instance
 EnergyMonitor emon1;
 
-// Calibration factor: For SCT-013-000
-double calibration = 5.0;
+// Calibration factor: Adjusted for SCT-013-000 (30A/30mA) with a 33 ohm burden resistor
+double calibration = 30.3; 
 
 // REPLACE WITH YOUR MAIN MODULE / RECEIVER ESP32 MAC ADDRESS
-// This is the MAC address of the ESP32 running the main receiver code.
 uint8_t receiverAddress[] = {0xA4, 0xF0, 0x0F, 0x77, 0xED, 0x98};
 
 // The ESP-NOW channel will be detected automatically by scanning ROUTER_SSID.
 uint8_t espnowChannel = FALLBACK_ESPNOW_CHANNEL;
 
 // Structure to hold the sensor data being sent
-// IMPORTANT:
-// This structure must be exactly the same in the receiver/main module code.
 typedef struct struct_message {
   uint8_t module_id;
   float current_A;
@@ -46,9 +41,9 @@ struct_message myData;
 esp_now_peer_info_t peerInfo;
 
 // =========================
-// ESP-NOW Send Callback
+// ESP-NOW Send Callback (Updated for ESP32-C3 compatibility)
 // =========================
-void OnDataSent(const wifi_tx_info_t *tx_info, esp_now_send_status_t status) {
+void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
   Serial.print("ESP-NOW Delivery Status: ");
   Serial.println(status == ESP_NOW_SEND_SUCCESS ? "Delivered" : "Failed");
 }
@@ -85,8 +80,6 @@ uint8_t findRouterChannel(const char* targetSSID) {
     Serial.print(" | RSSI: ");
     Serial.println(foundRSSI);
 
-    // If there are multiple routers/access points with the same SSID,
-    // choose the one with the strongest signal.
     if (foundSSID == targetSSID && foundRSSI > bestRSSI) {
       bestRSSI = foundRSSI;
       bestChannel = foundChannel;
@@ -119,15 +112,14 @@ uint8_t findRouterChannel(const char* targetSSID) {
 void setup() {
   Serial.begin(115200);
 
-  // Set ESP32 as WiFi Station for ESP-NOW.
-  // This turns on the WiFi radio but does not connect to router WiFi.
+  // Set ESP32-C3 as WiFi Station for ESP-NOW.
   WiFi.mode(WIFI_STA);
   WiFi.disconnect();
 
   delay(500);
 
   Serial.println();
-  Serial.println("Submodule Sender Starting...");
+  Serial.println("ESP32-C3 Submodule Sender Starting...");
   Serial.print("Module ID: ");
   Serial.println(MODULE_ID);
 
@@ -140,8 +132,8 @@ void setup() {
   Serial.print("Sender ESP-NOW Channel Set To: ");
   Serial.println(espnowChannel);
 
-  // Initialize EmonLib: input pin D34, calibration factor
-  emon1.current(34, calibration);
+  // Initialize EmonLib: Input pin updated to GPIO 4
+  emon1.current(CURRENT_SENSOR_PIN, calibration);
 
   // Initialize ESP-NOW
   if (esp_now_init() != ESP_OK) {
