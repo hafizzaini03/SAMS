@@ -10,7 +10,7 @@
 #define MODULE_ID 1
 
 // This must be the same WiFi SSID that the main module ESP32 connects to.
-#define ROUTER_SSID "Fuchi"
+#define ROUTER_SSID "<Your_Wifi_Name>"
 
 // Fallback channel if the router SSID cannot be found during scanning.
 #define FALLBACK_ESPNOW_CHANNEL 6
