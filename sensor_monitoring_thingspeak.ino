@@ -14,13 +14,13 @@ double calibration = 30.3;
 // =========================
 // WiFi Settings
 // =========================
-const char* WIFI_SSID = "Fuchi";
-const char* WIFI_PASSWORD = "leicam6leicam6";
+const char* WIFI_SSID = "<Your_Wifi_Name>";
+const char* WIFI_PASSWORD = "<Your_Wifi_Password>";
 
 // =========================
 // ThingSpeak Settings
 // =========================
-const char* THINGSPEAK_WRITE_APIKEY = "B09N2VNM7DVZAVST";
+const char* THINGSPEAK_WRITE_APIKEY = "<Your_Thingspeak_API_Write_Key>";
 const char* THINGSPEAK_SERVER = "http://api.thingspeak.com/update";
 
 // ThingSpeak free accounts should not update faster than every 15 seconds.
